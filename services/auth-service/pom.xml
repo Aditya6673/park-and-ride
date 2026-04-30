@@ -1,0 +1,400 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ─────────────────────────────────────────────────────────────────────
+         Parent — the monorepo root POM, NOT spring-boot-starter-parent.
+         Spring Boot's BOM is inherited transitively through the root POM.
+         Three levels up: services/auth-service/ → services/ → root
+    ──────────────────────────────────────────────────────────────────────── -->
+    <parent>
+        <groupId>com.parkride</groupId>
+        <artifactId>park-and-ride</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>auth-service</artifactId>
+    <packaging>jar</packaging>
+    <name>Park and Ride :: Services :: Auth Service</name>
+    <description>
+        Authentication and authorization service.
+        Owns user registration, login, JWT issuance, refresh token rotation,
+        email verification, password reset, and RBAC role management.
+        All other services trust the JWT produced here — they never talk
+        to this service at runtime; auth is stateless after token issuance.
+    </description>
+
+    <dependencies>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             1. INTERNAL SHARED MODULES
+             Versions resolved from root BOM — no version tags needed.
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <!-- Standard ApiResponse / ErrorResponse / PageRequest envelopes -->
+        <dependency>
+            <groupId>com.parkride</groupId>
+            <artifactId>common-dto</artifactId>
+        </dependency>
+
+        <!-- JwtUtil + SecurityConstants — shared with api-gateway -->
+        <dependency>
+            <groupId>com.parkride</groupId>
+            <artifactId>common-security</artifactId>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             2. CORE WEB & VALIDATION
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <!--
+            Embedded Tomcat + Spring MVC + Jackson.
+            Required by: AuthController, UserController.
+            Without this there is no HTTP server and no @RestController support.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!--
+            Enables @Valid on @RequestBody parameters.
+            Without this, @NotBlank / @Email / @Size on request DTOs
+            are present at compile time but never evaluated at runtime.
+            Required by: RegisterRequest, LoginRequest, all input DTOs.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             3. SECURITY
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <!--
+            Full Spring Security stack: SecurityFilterChain, AuthenticationManager,
+            UserDetailsService, BCryptPasswordEncoder, CSRF, CORS.
+            Required by: SecurityConfig, JwtAuthFilter.
+            Note: spring-security-crypto (for BCrypt) is included transitively.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!--
+            JJWT API — JWT interface only. The impl and jackson modules
+            (declared below as runtime) do the actual work at runtime.
+            Required by: JwtUtil in common-security.
+        -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+        </dependency>
+
+        <!-- JJWT implementation — runtime only, never imported directly -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- JJWT Jackson serialiser — runtime only -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             4. PERSISTENCE
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <!--
+            Hibernate ORM + Spring Data JPA (repositories, @Entity, @Transactional).
+            Required by: User, Role, RefreshToken entities and their repositories.
+            Also brings in HikariCP connection pool — no separate dependency needed.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!--
+            PostgreSQL JDBC driver.
+            Scope runtime: application code never imports it directly.
+            Spring Boot autoconfiguration loads it from the classpath.
+        -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!--
+            Flyway core — picks up V1__create_users.sql and V2__create_roles.sql
+            from resources/db/migration/ and runs them on startup.
+            Without this the migration files sit in the directory and do nothing.
+        -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
+        <!--
+            Flyway PostgreSQL dialect plugin.
+            Required separately from flyway-core since Flyway 10.
+            Without this, Flyway throws:
+            "No database found to handle jdbc:postgresql://..."
+        -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             5. CACHING & SESSION
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <!--
+            Spring Data Redis — provides RedisTemplate and StringRedisTemplate.
+            Used for: JWT blacklist (revoked JTIs), refresh token read cache,
+            and rate-limit counters (sliding window per user/IP).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <!--
+            Spring Session backed by Redis.
+            Enables SessionRegistry for concurrent session tracking
+            and "log out all devices" functionality.
+            Easier to include now than to retrofit after session management
+            is already wired into SecurityConfig.
+        -->
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-data-redis</artifactId>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             6. MESSAGING
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <!--
+            Spring Kafka — KafkaTemplate for publishing events.
+            auth-service publishes UserRegisteredEvent to a notification-events
+            topic after successful registration.
+            Only producer usage in Sprint 1; no @KafkaListener here.
+        -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             7. MAPPING & UTILITIES
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <!--
+            MapStruct — compile-time DTO ↔ Entity mapping.
+            Generates UserMapper implementation during mvn compile.
+            Zero reflection overhead at runtime vs. ModelMapper.
+            Processor declared separately below (provided scope).
+        -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+        </dependency>
+
+        <!--
+            MapStruct annotation processor.
+            Scope provided: runs during compilation only, not in the final JAR.
+            IMPORTANT: must come AFTER Lombok in the annotationProcessorPaths
+            in the root POM compiler plugin config — already handled in File 1.
+        -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct-processor</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             8. OBSERVABILITY
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <!--
+            Exposes /actuator/health and /actuator/info.
+            Required by: Docker health check in docker-compose.yml,
+            Kubernetes liveness + readiness probes in Phase 3.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!--
+            Exposes /actuator/prometheus scrape endpoint.
+            Prometheus polls this every 15 seconds.
+            Without this the auth-service is invisible to Grafana dashboards.
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <!--
+            OpenTelemetry distributed tracing bridge.
+            Propagates trace context (traceparent header) to downstream services.
+            Sends spans to Jaeger at the OTLP gRPC endpoint (localhost:4317).
+            Without this, traces break at the auth-service boundary.
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+
+        <!--
+            OpenTelemetry OTLP exporter — ships spans to Jaeger over gRPC.
+            Works in tandem with micrometer-tracing-bridge-otel above.
+        -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+            <version>${opentelemetry.version}</version>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             9. API DOCUMENTATION
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <!--
+            Generates OpenAPI 3.0 spec from controller annotations.
+            Serves Swagger UI at /swagger-ui.html.
+            Serves machine-readable spec at /v3/api-docs (listed in
+            SecurityConstants.PUBLIC_ENDPOINTS — no auth required).
+        -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.5.0</version>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             10. TESTING
+             All test dependencies scoped to 'test' — never in the final JAR.
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <!--
+            JUnit 5 + Mockito + AssertJ + MockMvc.
+            Inherited from root POM — redeclared here explicitly to make
+            the test scope visible to IntelliJ's test runner without
+            requiring a full Maven reload.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            @WithMockUser, SecurityMockMvcRequestPostProcessors.jwt(), csrf().
+            Without this, SecurityConfig intercepts every MockMvc request
+            in unit tests and returns 403 before the controller is reached.
+        -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            Testcontainers core — lifecycle management for Docker containers
+            in integration tests (AuthControllerIT).
+        -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            Testcontainers PostgreSQL module — spins up a real postgres:16-alpine
+            container for AuthControllerIT. Verifies Flyway migrations run cleanly
+            against an actual database, not just an H2 in-memory mock.
+        -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            Testcontainers JUnit 5 integration — @Testcontainers and @Container
+            annotations for automatic container lifecycle management.
+        -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            EmbeddedKafkaBroker — in-memory Kafka for integration tests.
+            Verifies that UserRegisteredEvent is published to a notification-events
+            topic after successful registration, without a real Kafka container.
+        -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+
+            <!--
+                Spring Boot repackage — produces the executable fat JAR.
+                This is a SERVICE module (not a shared lib), so repackage
+                is intentionally active here, unlike common-dto and common-security
+                where it was explicitly disabled.
+                Output: target/auth-service-1.0.0-SNAPSHOT.jar
+            -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!--
+                JaCoCo coverage — activated by the 'ci' profile in the root POM.
+                Enforces >= 80% line coverage on every mvn verified in CI.
+                Excludes generated MapStruct mapper implementations and
+                the main Application class from coverage calculation.
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <!-- MapStruct generated mappers -->
+                        <exclude>com/parkride/auth/mapper/*MapperImpl.class</exclude>
+                        <!-- Spring Boot entry point — trivial, not worth covering -->
+                        <exclude>com/parkride/auth/AuthServiceApplication.class</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+
+</project>

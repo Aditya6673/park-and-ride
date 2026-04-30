@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.parkride</groupId>
+        <artifactId>park-and-ride</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>common-events</artifactId>
+    <packaging>jar</packaging>
+    <name>Park and Ride :: Shared :: Common Events</name>
+    <description>
+        Kafka event POJOs shared across all microservices.
+        Defines the canonical schema for booking, ride, and payment domain events.
+        All producers and consumers depend on this module — never add service-specific
+        logic here; this library must remain dependency-free (only Jackson + Lombok).
+    </description>
+
+    <dependencies>
+
+        <!-- Jackson — event POJOs must be serialisable to/from JSON for Kafka -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Jackson JSR-310 module — serialises Instant / LocalDateTime correctly -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+                Disable Spring Boot repackage — this is a shared library, not a
+                runnable service. The repackage goal would produce an invalid fat
+                JAR that child modules cannot add as a dependency.
+            -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

@@ -1,0 +1,443 @@
+# =============================================================================
+# Park and Ride — Continuous Integration Pipeline
+# File: .github/workflows/ci.yml
+#
+# Trigger matrix:
+#   push → main, develop (full pipeline including integration tests)
+#   push → feature/**, fix/** (compile + unit tests only — fast feedback)
+#   PR → main, develop (full pipeline — must pass before merge)
+#
+# Pipeline stages (in order):
+#   1. validate — compile all modules, check code style
+#   2. unit-test — JUnit 5 unit tests + JaCoCo coverage (>= 80%)
+#   3. integration-test — Testcontainers IT suite (main/develop/PRs only)
+#   4. security-scan — OWASP dependency check + Trivy container scan
+#   5. build-images — Docker multi-stage builds (main/develop only)
+#   6. notify — Slack summary on failure
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - "feature/**"
+      - "fix/**"
+      - "hotfix/**"
+  pull_request:
+    branches:
+      - main
+      - develop
+
+# Cancel in-flight runs for the same branch on new push.
+# Prevents queuing 4 runs when you push 4 commits quickly.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# ── Global env — available to every job ──────────────────────────────────────
+env:
+  JAVA_VERSION: "21"
+  JAVA_DISTRIBUTION: "temurin"
+  MAVEN_OPTS: "-Xmx2g -XX:+TieredCompilation -XX:TieredStopAtLevel=1"
+  # Docker image registry (GitHub Container Registry)
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/park-and-ride
+
+# =============================================================================
+# JOB 1 — VALIDATE (compile + checkstyle)
+# Runs on every push and PR. Fails fast before spending time on tests.
+# =============================================================================
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # Full history required for SonarQube blame data
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      # Writes ~/.m2 cache key from pom.xml hash.
+      # Subsequent jobs restore this cache — avoids re-downloading 200+ MB of deps.
+      - name: Cache Maven repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-
+
+      - name: Compile all modules
+        run: mvn --batch-mode --no-transfer-progress compile -DskipTests
+
+      - name: Verify code style (Checkstyle)
+        run: mvn --batch-mode --no-transfer-progress checkstyle:check
+        # Checkstyle config at: build-tools/checkstyle.xml
+        # Enforces: Google Java Style Guide with project-specific overrides
+        continue-on-error: false
+
+  # =============================================================================
+  # JOB 2 — UNIT TESTS
+  # Runs after validate. Executes JUnit 5 unit tests and enforces 80% coverage.
+  # Uploads JaCoCo XML report as an artifact for the SonarQube job.
+  # =============================================================================
+  unit-test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: validate
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Restore Maven cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: maven-
+
+      - name: Run unit tests with coverage
+        run: |
+          mvn --batch-mode --no-transfer-progress \
+            test \
+            jacoco:report \
+            jacoco:check \
+            -P ci \
+            -Dsurefire.failIfNoSpecifiedTests=false
+
+      # Publish test results to the GitHub PR / commit summary panel.
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()    # Run even when tests fail so we can see the report
+        with:
+          name: Unit Test Results
+          path: "**/target/surefire-reports/*.xml"
+          reporter: java-junit
+          fail-on-error: false
+
+      # Upload JaCoCo XML so the security-scan job can forward it to SonarQube.
+      - name: Upload JaCoCo coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-reports
+          path: "**/target/site/jacoco/jacoco.xml"
+          retention-days: 7
+
+      # Enforce coverage threshold explicitly (belt-and-suspenders with jacoco:check).
+      - name: Check coverage threshold
+        run: |
+          echo "Verifying JaCoCo line coverage >= 80% across all modules..."
+          mvn --batch-mode --no-transfer-progress verify -P ci -DskipITs=true
+
+  # =============================================================================
+  # JOB 3 — INTEGRATION TESTS (Testcontainers)
+  # Only runs on: main, develop, and PRs targeting those branches.
+  # Feature branches get fast feedback from unit tests only.
+  # Spins up real PostgreSQL + Redis + Kafka via Testcontainers.
+  # =============================================================================
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: unit-test
+
+    # Skip on feature/fix pushes — only run on main, develop, and PRs
+    if: |
+      github.ref == 'refs/heads/main' ||
+      github.ref == 'refs/heads/develop' ||
+      github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Restore Maven cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: maven-
+
+      # Testcontainers pulls Docker images at test time.
+      # Pre-pulling here avoids timeout failures during the test run itself.
+      - name: Pre-pull Testcontainers images
+        run: |
+          docker pull postgres:16-alpine
+          docker pull redis:7.2-alpine
+          docker pull confluentinc/cp-kafka:7.6.0
+
+      - name: Run integration tests
+        run: |
+          mvn --batch-mode --no-transfer-progress \
+            verify \
+            -P ci \
+            -Dsurefire.skip=true \
+            -Dfailsafe.failIfNoSpecifiedTests=false
+        env:
+          # Testcontainers reuse mode — speeds up local runs (no effect in CI)
+          TESTCONTAINERS_REUSE_ENABLE: false
+
+      - name: Publish integration test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Integration Test Results
+          path: "**/target/failsafe-reports/*.xml"
+          reporter: java-junit
+          fail-on-error: false
+
+  # =============================================================================
+  # JOB 4 — SECURITY SCAN
+  # OWASP Dependency Check — scans all third-party dependencies for known CVEs.
+  # Trivy — scans the Docker image layers for OS + library vulnerabilities.
+  # SonarQube — static analysis, code smells, bug detection.
+  # Runs in parallel with integration-test (both need unit-test to pass first).
+  # =============================================================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: unit-test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Restore Maven cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: maven-
+
+      - name: Restore JaCoCo report
+        uses: actions/download-artifact@v4
+        with:
+          name: jacoco-reports
+
+      # OWASP Dependency Check — fails to build on CVSS score >= 7 (HIGH severity).
+      # NVD API key prevents rate-limiting on the vulnerability database download.
+      - name: OWASP Dependency Check
+        run: |
+          mvn --batch-mode --no-transfer-progress \
+            org.owasp:dependency-check-maven:check \
+            -DfailBuildOnCVSS=7 \
+            -DnvdApiKey=${{ secrets.NVD_API_KEY }} \
+            -DsuppressionsLocation=build-tools/owasp-suppressions.xml
+        continue-on-error: false
+
+      - name: Upload OWASP report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: owasp-report
+          path: "**/target/dependency-check-report.html"
+          retention-days: 14
+
+      # SonarQube — static code analysis.
+      # Skipped on forks (no access to SONAR_TOKEN secret).
+      - name: SonarQube analysis
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        run: |
+          mvn --batch-mode --no-transfer-progress \
+            sonar:sonar \
+            -Dsonar.projectKey=park-and-ride \
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+            -Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Trivy — scans built JAR layers for OS + library vulnerabilities.
+      # Activated only on main/develop where Docker images are also built.
+      - name: Trivy vulnerability scan (filesystem)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF report
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+          category: "trivy"
+
+  # =============================================================================
+  # JOB 5 — BUILD & PUSH DOCKER IMAGES
+  # Only runs on pushes to main and develop — not on PRs or feature branches.
+  # Builds multi-stage Docker images for all backend services.
+  # Tags: branch name + short SHA (e.g. develop-a1b2c3d)
+  # =============================================================================
+  build-images:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [integration-test, security-scan]
+
+    # Only on main and develop pushes (not PRs)
+    if: |
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    permissions:
+      contents: read
+      packages: write    # Required to push to GHCR
+
+    strategy:
+      # Build all services in parallel — fail-fast: false so one failure
+      # doesn't cancel other services' builds (useful for debugging)
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - auth-service
+          - parking-service
+          - ride-service
+          - notification-service
+          - payment-service
+          - analytics-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Restore Maven cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: maven-
+
+      - name: Build JAR (skip tests — already ran in earlier jobs)
+        run: |
+          mvn --batch-mode --no-transfer-progress \
+            package \
+            -DskipTests \
+            -pl services/${{ matrix.service }} \
+            -am
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Image tags:
+      #   ghcr.io/org/park-and-ride/auth-service:develop-a1b2c3d
+      #   ghcr.io/org/park-and-ride/auth-service:develop   (rolling branch tag)
+      #   ghcr.io/org/park-and-ride/auth-service:latest    (main branch only)
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=sha,prefix=${{ github.ref_name }}-,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: services/${{ matrix.service }}
+          file: services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # BuildKit layer caching — subsequent builds only rebuild changed layers
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            APP_VERSION=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+
+  # =============================================================================
+  # JOB 6 — NOTIFY
+  # Posts a Slack summary on any pipeline failure.
+  # Only runs if a previous job failed — never fires on clean green runs.
+  # =============================================================================
+  notify:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [validate, unit-test, integration-test, security-scan, build-images]
+
+    # Trigger on failure of ANY upstream job, regardless of branch
+    if: failure()
+
+    steps:
+      - name: Post Slack failure alert
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "❌ *CI Pipeline Failed* — Park & Ride",
+              "attachments": [
+                {
+                  "color": "danger",
+                  "fields": [
+                    { "title": "Repository", "value": "${{ github.repository }}", "short": true },
+                    { "title": "Branch",     "value": "${{ github.ref_name }}",   "short": true },
+                    { "title": "Commit",     "value": "${{ github.sha }}",         "short": true },
+                    { "title": "Author",     "value": "${{ github.actor }}",       "short": true },
+                    { "title": "Run URL",    "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

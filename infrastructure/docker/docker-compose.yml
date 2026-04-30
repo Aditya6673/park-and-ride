@@ -1,0 +1,459 @@
+# =============================================================================
+# Park and Ride — Local Development Stack
+# File: infrastructure/docker/docker-compose.yml
+#
+# Usage:
+#   Start all:        docker-compose up -d
+#   Start one:        docker-compose up -d postgres-auth
+#   View logs:        docker-compose logs -f kafka
+#   Tear down:        docker-compose down -v        (removes volumes too)
+#   Health check:     docker-compose ps
+#
+# Port map (quick reference):
+#   5432  → postgres-auth      (auth_db)
+#   5433  → postgres-parking   (parking_db)
+#   5434  → postgres-payment   (payment_db)
+#   6379  → redis
+#   9092  → kafka (external)
+#   29092 → kafka (internal / inter-container)
+#   2181  → zookeeper
+#   15672 → rabbitmq management UI
+#   5672  → rabbitmq AMQP
+#   8080  → pgadmin
+#   9090  → prometheus
+#   3000  → grafana
+#   5601  → kibana
+#   9200  → elasticsearch
+#   5044  → logstash beats
+#   16686 → jaeger UI
+#   4317  → jaeger OTLP gRPC
+# =============================================================================
+
+
+# =============================================================================
+# NETWORKS
+# All services share one bridge network.
+# Services reference each other by container name as hostname.
+# =============================================================================
+networks:
+  parkride-net:
+    driver: bridge
+    name: parkride-net
+
+# =============================================================================
+# NAMED VOLUMES
+# Persist data across container restarts.
+# Run `docker-compose down -v` to wipe all data for a clean slate.
+# =============================================================================
+volumes:
+  postgres-auth-data:
+  postgres-parking-data:
+  postgres-payment-data:
+  redis-data:
+  kafka-data:
+  zookeeper-data:
+  zookeeper-log:
+  elasticsearch-data:
+  grafana-data:
+  prometheus-data:
+
+# =============================================================================
+# SERVICES
+# =============================================================================
+services:
+
+  # ---------------------------------------------------------------------------
+  # DATABASES — one PostgreSQL instance per service (database-per-service pattern).
+  # Keeps schema ownership clean and enables independent migrations.
+  # ---------------------------------------------------------------------------
+
+  postgres-auth:
+    image: postgres:16-alpine
+    container_name: postgres-auth
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: auth_user
+      # In production this comes from Kubernetes secrets — never hardcode.
+      POSTGRES_PASSWORD: auth_secret
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-auth-data:/var/lib/postgresql/data
+      # Init scripts run once on first container start (only if volume is empty).
+      - ./init-scripts/auth:/docker-entrypoint-initdb.d:ro
+    networks:
+      - parkride-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_user -d auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postgres-parking:
+    image: postgres:16-alpine
+    container_name: postgres-parking
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: parking_db
+      POSTGRES_USER: parking_user
+      POSTGRES_PASSWORD: parking_secret
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-parking-data:/var/lib/postgresql/data
+      - ./init-scripts/parking:/docker-entrypoint-initdb.d:ro
+    networks:
+      - parkride-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parking_user -d parking_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postgres-payment:
+    image: postgres:16-alpine
+    container_name: postgres-payment
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: payment_user
+      POSTGRES_PASSWORD: payment_secret
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-payment-data:/var/lib/postgresql/data
+    networks:
+      - parkride-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payment_user -d payment_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # REDIS —  single instance for Phase 1.
+  # Serves: slot availability cache, JWT blacklist, rate-limit counters,
+  #         session tokens.
+  # Redis Sentinel / Cluster upgrade planned for Phase 3.
+  # ---------------------------------------------------------------------------
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass redis_secret
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - parkride-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_secret", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # KAFKA + ZOOKEEPER — event bus for async inter-service communication.
+  # Topics provisioned at startup:
+  #   booking-events, slot-events, payment-events, ride-events, notification-events
+  #
+  # Two listeners configured:
+  #   INTERNAL (29092) — used by other Docker containers
+  #   EXTERNAL (9092)  — used by your local Spring Boot app running outside Docker
+  # ---------------------------------------------------------------------------
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
+      KAFKA_OPTS: "-Dzookeeper.4lw.commands.whitelist=ruok"
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-log:/var/lib/zookeeper/log
+    networks:
+      - parkride-net
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # INTERNAL listener: used by services inside Docker network
+      # EXTERNAL listener: used when running Spring Boot locally (outside Docker)
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 168         # 7 days
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - parkride-net
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Creates all required Kafka topics after the broker is healthy.
+  # Exits after completion — this is expected (exit code 0).
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "
+      echo 'Creating Kafka topics...'
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic booking-events   --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic slot-events      --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic payment-events   --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ride-events      --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic notification-events --partitions 1 --replication-factor 1
+      echo 'Topics created successfully.'
+      kafka-topics --bootstrap-server kafka:29092 --list
+      "
+    networks:
+      - parkride-net
+
+  # ---------------------------------------------------------------------------
+  # RABBITMQ — used as notification delivery queue (stub for Phase 1).
+  # Management UI available at http://localhost:15672
+  # Default credentials: guest / guest (change before staging deploy)
+  # ---------------------------------------------------------------------------
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_VHOST: parkride
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Management UI
+    networks:
+      - parkride-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # PGADMIN — browser-based Postgres administration.
+  # Access: http://localhost:8080
+  # Login: admin@parkride.com / admin
+  # ---------------------------------------------------------------------------
+
+  pgadmin:
+    image: dpage/pgadmin4:8.5
+    container_name: pgadmin
+    restart: unless-stopped
+    depends_on:
+      - postgres-auth
+      - postgres-parking
+      - postgres-payment
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@parkride.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"   # Single-user desktop mode
+    ports:
+      - "8080:80"
+    networks:
+      - parkride-net
+    profiles:
+      - tools    # Only starts with: docker-compose --profile tools up
+
+  # ---------------------------------------------------------------------------
+  # PROMETHEUS — metrics scraping.
+  # Config file: ../../monitoring/prometheus/prometheus.yml
+  # Access: http://localhost:9090
+  # ---------------------------------------------------------------------------
+
+  prometheus:
+    image: prom/prometheus:v2.51.1
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"   # Enables POST /-/reload without restart
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../../monitoring/prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - parkride-net
+    profiles:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
+  # GRAFANA — dashboards.
+  # Access: http://localhost:3000  (admin / admin on first login)
+  # Dashboards auto-provisioned from ../../monitoring/grafana/dashboards/
+  # ---------------------------------------------------------------------------
+
+  grafana:
+    image: grafana/grafana:10.4.1
+    container_name: grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana-provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - parkride-net
+    profiles:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
+  # ELASTICSEARCH — log storage for ELK stack.
+  # Single-node for local dev. 3-node cluster in production.
+  # ---------------------------------------------------------------------------
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.2
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false       # Disable TLS for local dev only
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - cluster.name=parkride-logs
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - parkride-net
+    profiles:
+      - monitoring
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -v '\"status\":\"red\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # ---------------------------------------------------------------------------
+  # LOGSTASH — log ingestion and parsing pipeline.
+  # ---------------------------------------------------------------------------
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.13.2
+    container_name: logstash
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ../../monitoring/elk/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    ports:
+      - "5044:5044"    # Beats input
+      - "5000:5000"    # TCP input
+    networks:
+      - parkride-net
+    profiles:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
+  # KIBANA — log visualisation UI.
+  # Access: http://localhost:5601
+  # ---------------------------------------------------------------------------
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.2
+    container_name: kibana
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    networks:
+      - parkride-net
+    profiles:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
+  # JAEGER — distributed tracing.
+  # Access: http://localhost:16686
+  # OTLP gRPC endpoint: localhost:4317 (used in application.yml)
+  # ---------------------------------------------------------------------------
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.56
+    container_name: jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      SPAN_STORAGE_TYPE: memory     # Switch to elasticsearch in production
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+      - "14268:14268"   # Jaeger HTTP collector
+    networks:
+      - parkride-net
+    profiles:
+      - monitoring

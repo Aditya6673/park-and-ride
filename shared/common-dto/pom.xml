@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.parkride</groupId>
+        <artifactId>park-and-ride</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <!-- Two levels up from shared/common-dto/ to the monorepo root -->
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>common-dto</artifactId>
+    <packaging>jar</packaging>
+    <name>Park and Ride :: Shared :: Common DTOs</name>
+    <description>
+        Standard API envelope, error response, and pagination contracts
+        shared across all services. No Spring Boot autoconfiguration —
+        this is a plain library JAR with zero startup overhead.
+    </description>
+
+    <dependencies>
+        <!-- Validation annotations (@NotNull, @Size, etc.) used in DTOs -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Jackson — serialize/deserialize API responses -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+                Explicitly exclude spring-boot-maven-plugin repackage goal.
+                Shared libs must remain plain JARs — not executable fat JARs.
+                If this plugin runs the repackaged goal, the JAR manifest is
+                rewritten and other modules can no longer import it as a dependency.
+            -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>repackage</id>
+                        <phase>none</phase>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
