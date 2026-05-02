@@ -151,7 +151,7 @@ public class AuthService {
         }
 
         String newAccessToken  = tokenService.generateAccessToken(user);
-        String newRefreshToken = tokenService.generateAndPersistRefreshToken(user, null);
+        String newRefreshToken = tokenService.generateAndPersistRefreshToken(user, rotated.deviceInfo());
 
         return buildAuthResponse(user, newAccessToken, newRefreshToken);
     }
@@ -251,7 +251,7 @@ public class AuthService {
                 .lastName(user.getLastName())
                 .roles(roles)
                 .verified(user.isVerified())
-                // refreshToken intentionally omitted - set as HttpOnly cookie by controller
+                .refreshToken(refreshToken)   // carried to controller; @JsonIgnore keeps it out of JSON
                 .build();
     }
 

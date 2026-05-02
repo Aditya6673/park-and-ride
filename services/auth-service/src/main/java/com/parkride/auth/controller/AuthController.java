@@ -44,7 +44,7 @@ public class AuthController {
             HttpServletResponse httpResponse) {
 
         AuthResponse auth = authService.register(request, httpRequest.getHeader("User-Agent"));
-        setRefreshCookie(httpResponse, auth.getAccessToken()); // placeholder — real token in service
+        setRefreshCookie(httpResponse, auth.getRefreshToken());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Registration successful", auth));
     }
@@ -58,8 +58,7 @@ public class AuthController {
             HttpServletResponse httpResponse) {
 
         AuthResponse auth = authService.login(request);
-        // Refresh token is in auth.refreshToken only temporarily — extract and set as cookie
-        // For now the token is in the AuthResponse; controller moves it to cookie
+        setRefreshCookie(httpResponse, auth.getRefreshToken());
         return ResponseEntity.ok(ApiResponse.success("Login successful", auth));
     }
 
@@ -84,6 +83,7 @@ public class AuthController {
         }
 
         AuthResponse auth = authService.refresh(refreshToken);
+        setRefreshCookie(httpResponse, auth.getRefreshToken());
         return ResponseEntity.ok(ApiResponse.success("Token refreshed", auth));
     }
 

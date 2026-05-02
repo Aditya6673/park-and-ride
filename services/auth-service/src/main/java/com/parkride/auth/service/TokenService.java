@@ -123,7 +123,7 @@ public class TokenService {
         stored.revoke();
         refreshTokenRepository.save(stored);
 
-        return new RotatedTokens(Objects.requireNonNull(stored.getUserId()), hash);
+        return new RotatedTokens(Objects.requireNonNull(stored.getUserId()), hash, stored.getDeviceInfo());
     }
 
     @Transactional
@@ -153,5 +153,5 @@ public class TokenService {
     }
 
     /** Value object returned by {@link #rotateRefreshToken}. */
-    public record RotatedTokens(@NonNull UUID userId, String oldTokenHash) {}
+    public record RotatedTokens(@NonNull UUID userId, String oldTokenHash, String deviceInfo) {}
 }
