@@ -16,6 +16,6 @@ public class LoginRequest {
     @NotBlank(message = "Password is required")
     private String password;
 
-    /** Optional device identifier for session tracking. */
+    /** Optional device identifier for session tracking. **/
     private String deviceInfo;
 }

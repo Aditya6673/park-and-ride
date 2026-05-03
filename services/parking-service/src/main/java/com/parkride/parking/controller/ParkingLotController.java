@@ -20,6 +20,8 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/parking/lots")
 @RequiredArgsConstructor
+// "null" — Eclipse @NonNull false positive on Hibernate-populated entity IDs inside Optional.map().
+@SuppressWarnings("null")
 public class ParkingLotController {
 
     private final ParkingLotRepository  lotRepository;

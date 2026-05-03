@@ -4,9 +4,7 @@ import com.parkride.events.BookingEvent;
 import com.parkride.parking.domain.Booking;
 import com.parkride.parking.domain.BookingStatus;
 import com.parkride.parking.domain.ParkingSlot;
-import com.parkride.parking.domain.SlotStatus;
 import com.parkride.parking.dto.CreateBookingRequest;
-import com.parkride.parking.exception.BookingNotFoundException;
 import com.parkride.parking.exception.ParkingException;
 import com.parkride.parking.exception.SlotUnavailableException;
 import com.parkride.parking.repository.BookingRepository;
@@ -47,6 +45,10 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+// "null" — Eclipse @NonNull false positives on Mockito-like patterns:
+//          booking.getId() after repository.save(), UUID.toString(), and
+//          slotRepository.findById().map() inside the assignment algorithm.
+@SuppressWarnings("null")
 public class SlotAssignmentService {
 
     private static final String SLOT_LOCK_PREFIX   = "slot-lock:";
@@ -91,7 +93,7 @@ public class SlotAssignmentService {
         ParkingSlot targetSlot = candidates.stream()
                 .filter(s -> s.getId().equals(request.getSlotId()))
                 .findFirst()
-                .orElse(candidates.get(0)); // first candidate is already position-ordered
+                .orElse(candidates.getFirst()); // first candidate is already position-ordered
 
         // Step 5 — acquire distributed lock on slot UUID
         RLock lock = redissonClient.getLock(SLOT_LOCK_PREFIX + targetSlot.getId());

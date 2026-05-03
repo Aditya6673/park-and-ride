@@ -25,6 +25,8 @@ import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TokenService Unit Tests")
+// "null" — Eclipse @NonNull false positive on Mockito stub returning RefreshToken.
+@SuppressWarnings("null")
 class TokenServiceTest {
 
     private static final String TEST_SECRET = "test-secret-for-unit-tests-only-32ch!!";

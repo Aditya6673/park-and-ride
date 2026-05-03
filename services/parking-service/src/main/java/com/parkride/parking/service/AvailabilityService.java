@@ -23,6 +23,9 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+// "null" — Eclipse @NonNull false positives on String.valueOf() and Duration constant
+//          passed to RedisTemplate.opsForValue().set() which declares @NonNull params.
+@SuppressWarnings("null")
 public class AvailabilityService {
 
     private static final String CACHE_PREFIX = "availability:";

@@ -2,7 +2,6 @@ package com.parkride.parking.service;
 
 import com.parkride.events.BookingEvent;
 import com.parkride.parking.domain.Booking;
-import com.parkride.parking.domain.SlotStatus;
 import com.parkride.parking.dto.BookingResponse;
 import com.parkride.parking.dto.CreateBookingRequest;
 import com.parkride.parking.exception.BookingNotFoundException;
@@ -34,6 +33,9 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+// "null" — Eclipse @NonNull false positives on Hibernate-populated entity fields
+//          accessed through booking.getSlot() chains after Optional.orElseThrow().
+@SuppressWarnings("null")
 public class BookingService {
 
     /** Maximum active bookings per user — prevents hoarding. */

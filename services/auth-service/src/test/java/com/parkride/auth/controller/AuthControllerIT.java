@@ -33,6 +33,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @EmbeddedKafka(partitions = 1, topics = {"notification-events"})
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+// "resource" — @Container manages the container lifecycle; no manual close needed.
+// "null"     — MediaType constants and ObjectMapper.writeValueAsString() are never null;
+//              Eclipse's @NonNull analysis produces false positives here.
+@SuppressWarnings({"resource", "null"})
 class AuthControllerIT {
 
     @Container

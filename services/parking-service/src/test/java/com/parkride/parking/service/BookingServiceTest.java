@@ -20,7 +20,6 @@ import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,6 +30,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("BookingService — unit tests")
+// "null" — Eclipse @NonNull false positives on Mockito thenReturn stubs for
+//          Booking, ParkingSlot, and List<Booking> return types.
+@SuppressWarnings("null")
 class BookingServiceTest {
 
     @Mock BookingRepository          bookingRepository;
@@ -210,6 +212,6 @@ class BookingServiceTest {
         var page = bookingService.getUserBookings(userId, pageable);
 
         assertThat(page.getTotalElements()).isEqualTo(1);
-        assertThat(page.getContent().get(0).getId()).isEqualTo(bookingId);
+        assertThat(page.getContent().getFirst().getId()).isEqualTo(bookingId);
     }
 }

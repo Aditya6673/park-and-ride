@@ -30,6 +30,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("SlotAssignmentService — unit tests")
+// "null" — Eclipse @NonNull false positives on Mockito stubs (thenReturn, thenAnswer)
+//          and entity getters (UUID, String) accessed through mock boundaries.
+@SuppressWarnings("null")
 class SlotAssignmentServiceTest {
 
     @Mock BookingRepository              bookingRepository;

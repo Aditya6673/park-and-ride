@@ -16,7 +16,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -56,6 +56,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DisplayName("Parking Controller — integration tests")
+// "null" — Eclipse @NonNull false positives on Mockito stubs and Hibernate entity
+//          getters (UUID, ParkingSlot) accessed through mock and Optional boundaries.
+@SuppressWarnings("null")
 class ParkingControllerIT {
 
     @Autowired MockMvc         mockMvc;
@@ -66,12 +69,12 @@ class ParkingControllerIT {
     @Autowired BookingRepository     bookingRepository;
 
     // Mock infrastructure not available in tests
-    @MockBean AvailabilityService        availabilityService;
-    @MockBean AvailabilityBroadcastService broadcastService;
-    @MockBean RedissonClient             redissonClient;
-    @MockBean RLock                      rLock;
-    @MockBean QRCodeService              qrCodeService;
-    @MockBean KafkaTemplate<String, Object> kafkaTemplate;
+    @MockitoBean AvailabilityService        availabilityService;
+    @MockitoBean AvailabilityBroadcastService broadcastService;
+    @MockitoBean RedissonClient             redissonClient;
+    @MockitoBean RLock                      rLock;
+    @MockitoBean QRCodeService              qrCodeService;
+    @MockitoBean KafkaTemplate<String, Object> kafkaTemplate;
 
     // Shared state across ordered tests
     private static UUID          TEST_USER_ID;

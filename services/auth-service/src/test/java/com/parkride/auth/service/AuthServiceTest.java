@@ -28,6 +28,8 @@ import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AuthService Unit Tests")
+// "null" — Eclipse @NonNull false positives on Mockito willAnswer/inv.getArgument stubs.
+@SuppressWarnings("null")
 class AuthServiceTest {
 
     @Mock private UserRepository        userRepository;
