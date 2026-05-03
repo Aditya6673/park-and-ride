@@ -9,6 +9,7 @@ import com.parkride.parking.service.AvailabilityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -44,16 +45,18 @@ public class ParkingLotController {
         return ResponseEntity.ok(ApiResponse.success("Lots fetched", lots));
     }
 
-    @Operation(summary = "Find lots near a coordinate (Haversine radius search)")
+    @Operation(summary = "Find lots near a coordinate (Haversine radius search, paginated, nearest-first)")
     @GetMapping("/nearby")
-    public ResponseEntity<ApiResponse<List<ParkingLotResponse>>> findNearby(
+    public ResponseEntity<ApiResponse<Page<ParkingLotResponse>>> findNearby(
             @RequestParam double lat,
             @RequestParam double lng,
-            @RequestParam(defaultValue = "5.0") double radiusKm) {
+            @RequestParam(defaultValue = "5.0")  double radiusKm,
+            @RequestParam(defaultValue = "0")    int    page,
+            @RequestParam(defaultValue = "20")   int    size) {
 
-        List<ParkingLotResponse> lots = lotRepository.findNearby(lat, lng, radiusKm).stream()
-                .map(lot -> ParkingLotResponse.from(lot, availabilityService.getAvailableCount(lot.getId())))
-                .toList();
+        Page<ParkingLotResponse> lots = lotRepository
+                .findNearby(lat, lng, radiusKm, PageRequest.of(page, size))
+                .map(lot -> ParkingLotResponse.from(lot, availabilityService.getAvailableCount(lot.getId())));
 
         return ResponseEntity.ok(ApiResponse.success("Nearby lots fetched", lots));
     }

@@ -19,16 +19,19 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLot, UUID> {
     List<ParkingLot> findByActiveTrueOrderByNameAsc();
 
     /**
-     * Finds lots within {@code radiusKm} kilometres of the given coordinates.
+     * Finds lots within {@code radiusKm} kilometres of the given coordinates,
+     * ordered by distance ascending (nearest first), with full pagination support.
      *
-     * <p>Uses the Haversine formula approximated in SQL. Accuracy is sufficient
-     * for city-scale parking search (error < 0.5% at these distances).
+     * <p>A separate {@code countQuery} is required because Spring Data cannot
+     * derive a COUNT query from a JPQL {@code ORDER BY} that uses a computed
+     * expression — it would try to wrap it and fail with a syntax error.
      *
      * @param lat       centre latitude (WGS84)
      * @param lng       centre longitude (WGS84)
      * @param radiusKm  search radius in kilometres
+     * @param pageable  page/size/sort (sort is ignored — distance order is fixed)
      */
-    @Query("""
+    @Query(value = """
             SELECT l FROM ParkingLot l
             WHERE l.active = true
             AND (6371 * acos(
@@ -41,8 +44,18 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLot, UUID> {
                   cos(radians(l.longitude) - radians(:lng)) +
                   sin(radians(:lat)) * sin(radians(l.latitude))
             )) ASC
+            """,
+           countQuery = """
+            SELECT COUNT(l) FROM ParkingLot l
+            WHERE l.active = true
+            AND (6371 * acos(
+                  cos(radians(:lat)) * cos(radians(l.latitude)) *
+                  cos(radians(l.longitude) - radians(:lng)) +
+                  sin(radians(:lat)) * sin(radians(l.latitude))
+            )) <= :radiusKm
             """)
-    List<ParkingLot> findNearby(@Param("lat") double lat,
+    Page<ParkingLot> findNearby(@Param("lat") double lat,
                                 @Param("lng") double lng,
-                                @Param("radiusKm") double radiusKm);
+                                @Param("radiusKm") double radiusKm,
+                                Pageable pageable);
 }
