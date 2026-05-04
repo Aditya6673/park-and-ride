@@ -1,0 +1,21 @@
+package com.parkride.payment.repository;
+
+import com.parkride.payment.domain.Transaction;
+import com.parkride.payment.domain.Wallet;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
+
+    Page<Transaction> findByWalletOrderByCreatedAtDesc(Wallet wallet, Pageable pageable);
+
+    boolean existsByIdempotencyKey(String idempotencyKey);
+
+    Optional<Transaction> findByIdempotencyKey(String idempotencyKey);
+}
