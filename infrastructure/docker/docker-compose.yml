@@ -49,6 +49,7 @@ volumes:
   postgres-auth-data:
   postgres-parking-data:
   postgres-payment-data:
+  postgres-pricing-data:
   redis-data:
   kafka-data:
   zookeeper-data:
@@ -132,6 +133,28 @@ services:
       - parkride-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U payment_user -d payment_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postgres-pricing:
+    image: postgres:16-alpine
+    container_name: postgres-pricing
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pricing_db
+      POSTGRES_USER: pricing_user
+      POSTGRES_PASSWORD: pricing_secret
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres-pricing-data:/var/lib/postgresql/data
+    networks:
+      - parkride-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pricing_user -d pricing_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -246,11 +269,12 @@ services:
     command: |
       "
       echo 'Creating Kafka topics...'
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic booking-events   --partitions 3 --replication-factor 1
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic slot-events      --partitions 3 --replication-factor 1
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic payment-events   --partitions 3 --replication-factor 1
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ride-events      --partitions 3 --replication-factor 1
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic notification-events --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic booking-events        --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic slot-events           --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic payment-events        --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ride-events           --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic notification-events   --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic user-events           --partitions 3 --replication-factor 1
       echo 'Topics created successfully.'
       kafka-topics --bootstrap-server kafka:29092 --list
       "

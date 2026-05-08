@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.parkride</groupId>
+        <artifactId>park-and-ride</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>pricing-service</artifactId>
+    <packaging>jar</packaging>
+    <name>Park and Ride :: Services :: Pricing Service</name>
+    <description>
+        Dynamic surge pricing engine for parking lots.
+        Computes fees using: base_rate × time_multiplier × occupancy_multiplier,
+        capped at max_surge_cap. Tracks real-time occupancy via Kafka booking-events.
+        Redis caches computed prices (30s TTL) for low-latency GET responses.
+    </description>
+
+    <dependencies>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             1. INTERNAL SHARED MODULES
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <dependency>
+            <groupId>com.parkride</groupId>
+            <artifactId>common-dto</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.parkride</groupId>
+            <artifactId>common-security</artifactId>
+        </dependency>
+
+        <!-- BookingEvent — consumed from booking-events Kafka topic -->
+        <dependency>
+            <groupId>com.parkride</groupId>
+            <artifactId>common-events</artifactId>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             2. CORE WEB & VALIDATION
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             3. SECURITY — JWT validation (reuses common-security JwtUtil)
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             4. PERSISTENCE — pricing_rules table via Flyway + JPA
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             5. REDIS — occupancy counters + price cache (30s TTL)
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             6. MESSAGING — Kafka consumer (booking-events, read-only)
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             7. OBSERVABILITY
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             8. API DOCUMENTATION
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.8.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-reflect</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             9. DEVELOPER TOOLS
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             10. TESTING
+        ══════════════════════════════════════════════════════════════════ -->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.parkride.pricing.PricingServiceApplication</mainClass>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+            <!--
+                Failsafe — runs *IT.java integration tests during `mvn verify`.
+                BookingEventConsumerIT: uses @EmbeddedKafka, mocks Redis.
+                PricingControllerIT:   requires postgres-pricing (5435) + Redis (6379).
+                Start first: docker-compose up -d postgres-pricing redis
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+            </plugin>
+
+            <!--
+                JaCoCo — 80% line coverage enforced on verify.
+                Infrastructure/wiring classes (config, security, controller) are excluded
+                from the coverage check because they are exercised by IT tests only —
+                and IT coverage data is collected after the jacoco:check phase runs.
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <!-- Entry point — trivial, no logic -->
+                        <exclude>com/parkride/pricing/PricingServiceApplication.class</exclude>
+                        <!-- Config wiring — no business logic, tested via Spring context in ITs -->
+                        <exclude>com/parkride/pricing/config/**</exclude>
+                        <!-- JWT filter + security config — tested via MockMvc in ITs -->
+                        <exclude>com/parkride/pricing/security/**</exclude>
+                        <!-- REST controller — exercised end-to-end by PricingControllerIT -->
+                        <exclude>com/parkride/pricing/controller/**</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+
+</project>
