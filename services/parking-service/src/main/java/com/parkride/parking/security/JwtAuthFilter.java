@@ -21,6 +21,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * JWT validation filter — identical in purpose to the one in auth-service,
@@ -66,7 +67,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
                             jwtUtil.extractUserId(claims).toString(), null, authorities);
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            // Store email in details so services can include it in Kafka events
+            // without making a synchronous call to auth-service.
+            authentication.setDetails(Map.of(
+                    "email", jwtUtil.extractEmail(claims) != null ? jwtUtil.extractEmail(claims) : "",
+                    "remoteAddr", request.getRemoteAddr()
+            ));
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
         } catch (ExpiredJwtException e) {

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Booking Cancelled</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f9; color: #333; }
+        .wrapper { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 12px;
+                   overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #c62828 0%, #e53935 100%);
+                  padding: 36px 40px; text-align: center; }
+        .header h1 { color: #fff; font-size: 24px; font-weight: 700; }
+        .header p  { color: rgba(255,255,255,0.85); font-size: 14px; margin-top: 6px; }
+        .badge { display: inline-block; background: rgba(255,255,255,0.2); color: #fff;
+                 font-size: 13px; font-weight: 700; padding: 4px 14px;
+                 border-radius: 20px; margin-top: 12px; border: 1px solid rgba(255,255,255,0.4); }
+        .body { padding: 36px 40px; }
+        .greeting { font-size: 18px; font-weight: 600; color: #333; margin-bottom: 16px; }
+        .details-card { background: #fff5f5; border: 1px solid #fed7d7; border-radius: 10px;
+                        padding: 24px; margin: 20px 0; }
+        .detail-row { display: flex; justify-content: space-between; align-items: center;
+                      padding: 10px 0; border-bottom: 1px solid #fed7d7; }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-label { font-size: 13px; color: #718096; font-weight: 500; }
+        .detail-value { font-size: 14px; color: #2d3748; font-weight: 600; }
+        .refund-box { background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 10px;
+                      padding: 20px 24px; margin: 20px 0; text-align: center; }
+        .refund-box h3 { color: #2e7d32; font-size: 16px; margin-bottom: 6px; }
+        .refund-amount { font-size: 28px; font-weight: 700; color: #1b5e20; }
+        .refund-box p { font-size: 13px; color: #4a5568; margin-top: 8px; }
+        .footer { background: #f4f6f9; padding: 24px 40px; text-align: center;
+                  font-size: 12px; color: #a0aec0; border-top: 1px solid #e2e8f0; }
+        .footer a { color: #0F4C6B; text-decoration: none; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="header">
+        <h1>🚗 Park &amp; Ride</h1>
+        <p>Booking Cancellation Confirmation</p>
+        <span class="badge">❌ CANCELLED</span>
+    </div>
+    <div class="body">
+        <p class="greeting">Hi <span th:text="${userName}">Valued Customer</span>,</p>
+        <p style="color:#4a5568;font-size:15px;line-height:1.6;margin-bottom:20px;">
+            Your parking booking has been successfully cancelled.
+            We're sorry to see you go — here's a summary of your cancellation.
+        </p>
+
+        <div class="details-card">
+            <div class="detail-row">
+                <span class="detail-label">Booking ID</span>
+                <span class="detail-value" style="font-family:monospace;font-size:12px;"
+                      th:text="${#strings.abbreviate(bookingId, 18) + '...'}">booking-id</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Slot</span>
+                <span class="detail-value" th:text="${slotLabel}">B-12 / Ground Floor</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Status</span>
+                <span class="detail-value" style="color:#e53935;">Cancelled</span>
+            </div>
+        </div>
+
+        <div class="refund-box" th:if="${amount != null}">
+            <h3>💰 Refund Initiated</h3>
+            <div class="refund-amount">₹<span th:text="${amount}">100</span></div>
+            <p>The refund will be credited to your Park &amp; Ride wallet within a few minutes.
+               You can check your wallet balance in the app.</p>
+        </div>
+
+        <p style="font-size:14px;color:#718096;margin-top:16px;">
+            Need to re-book? <strong>Open the Park &amp; Ride app</strong> to find
+            available slots near you.
+        </p>
+    </div>
+    <div class="footer">
+        <p>Park &amp; Ride Platform · Smart Parking &amp; Last-Mile Connectivity</p>
+        <p style="margin-top:6px;">Questions? <a href="mailto:support@parkride.com">support@parkride.com</a></p>
+    </div>
+</div>
+</body>
+</html>

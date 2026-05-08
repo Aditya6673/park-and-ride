@@ -124,6 +124,20 @@ public class PaymentEvent {
     @JsonProperty("loyaltyPointsDelta")
     private Integer loyaltyPointsDelta;
 
+    /**
+     * User's email address — forwarded from the originating BookingEvent.
+     * The Notification Service uses this to address outbound emails.
+     */
+    @JsonProperty("userEmail")
+    private String userEmail;
+
+    /**
+     * User's display name — for email salutation.
+     * Optional; notification-service falls back to "Valued Customer" when null.
+     */
+    @JsonProperty("userName")
+    private String userName;
+
     // ── Event type discriminator ──────────────────────────────────────────────
 
     public enum EventType {

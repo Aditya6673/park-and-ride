@@ -15,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -169,6 +171,12 @@ public class SlotAssignmentService {
 
     public void publishBookingEvent(Booking booking, BookingEvent.EventType eventType) {
         try {
+            // Extract user email from SecurityContext (stored by JwtAuthFilter).
+            // Falls back to null for scheduled jobs (no HTTP context).
+            String userEmail = extractEmailFromSecurityContext();
+            String slotLabel = booking.getSlot().getSlotNumber()
+                    + " / " + booking.getSlot().getFloor() + " Floor";
+
             BookingEvent event = BookingEvent.builder()
                     .eventId(UUID.randomUUID())
                     .eventType(eventType)
@@ -182,6 +190,8 @@ public class SlotAssignmentService {
                     .startTime(booking.getStartTime())
                     .endTime(booking.getEndTime())
                     .qrCodeToken(booking.getQrToken())
+                    .userEmail(userEmail)
+                    .slotLabel(slotLabel)
                     .build();
 
             kafkaTemplate.send("booking-events", booking.getUserId().toString(), event);
@@ -190,5 +200,16 @@ public class SlotAssignmentService {
             // Non-fatal — booking is already persisted; event can be replayed
             log.error("Failed to publish Kafka event for booking {}: {}", booking.getId(), e.getMessage(), e);
         }
+    }
+
+    private String extractEmailFromSecurityContext() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getDetails() == null) return null;
+        if (auth.getDetails() instanceof java.util.Map<?, ?> detailsMap) {
+            Object email = detailsMap.get("email");
+            String emailStr = email instanceof String s ? s : null;
+            return (emailStr != null && !emailStr.isBlank()) ? emailStr : null;
+        }
+        return null;
     }
 }

@@ -1,6 +1,6 @@
 # =============================================================================
 # Park and Ride — Continuous Integration Pipeline
-# File: .github/workflows/ci.yml
+# File: .GitHub/workflows/ci.yml
 #
 # Trigger matrix:
 #   push → main, develop (full pipeline including integration tests)

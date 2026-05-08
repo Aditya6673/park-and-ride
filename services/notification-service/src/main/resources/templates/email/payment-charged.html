@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Payment Receipt</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f9; color: #333; }
+        .wrapper { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 12px;
+                   overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #0F4C6B 0%, #1a7a9c 100%);
+                  padding: 36px 40px; text-align: center; }
+        .header h1 { color: #fff; font-size: 24px; font-weight: 700; }
+        .header p  { color: rgba(255,255,255,0.8); font-size: 14px; margin-top: 6px; }
+        .badge { display: inline-block; background: #43a047; color: #fff;
+                 font-size: 13px; font-weight: 700; padding: 4px 14px;
+                 border-radius: 20px; margin-top: 12px; }
+        .body { padding: 36px 40px; }
+        .greeting { font-size: 18px; font-weight: 600; color: #0F4C6B; margin-bottom: 16px; }
+        .amount-hero { text-align: center; padding: 28px; background: #f0f7ff;
+                       border-radius: 12px; margin: 20px 0; }
+        .amount-hero .label { font-size: 13px; color: #718096; text-transform: uppercase;
+                              letter-spacing: 1px; margin-bottom: 8px; }
+        .amount-hero .value { font-size: 40px; font-weight: 800; color: #0F4C6B; }
+        .details-card { background: #f8fafc; border: 1px solid #e2e8f0;
+                        border-radius: 10px; padding: 24px; margin: 20px 0; }
+        .detail-row { display: flex; justify-content: space-between;
+                      padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-label { font-size: 13px; color: #718096; }
+        .detail-value { font-size: 14px; color: #2d3748; font-weight: 600; }
+        .footer { background: #f4f6f9; padding: 24px 40px; text-align: center;
+                  font-size: 12px; color: #a0aec0; border-top: 1px solid #e2e8f0; }
+        .footer a { color: #0F4C6B; text-decoration: none; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="header">
+        <h1>🚗 Park &amp; Ride</h1>
+        <p>Payment Receipt</p>
+        <span class="badge">💳 PAYMENT RECEIVED</span>
+    </div>
+    <div class="body">
+        <p class="greeting">Hi <span th:text="${userName}">Valued Customer</span>,</p>
+        <p style="color:#4a5568;font-size:15px;line-height:1.6;margin-bottom:20px;">
+            Your payment has been successfully processed. Here's your receipt.
+        </p>
+
+        <div class="amount-hero">
+            <div class="label">Amount Charged</div>
+            <div class="value">₹<span th:text="${amount}">100</span></div>
+        </div>
+
+        <div class="details-card">
+            <div class="detail-row" th:if="${referenceId != null}">
+                <span class="detail-label">Booking ID</span>
+                <span class="detail-value" style="font-family:monospace;font-size:12px;"
+                      th:text="${#strings.abbreviate(referenceId.toString(), 18) + '...'}">ref</span>
+            </div>
+            <div class="detail-row" th:if="${balanceAfter != null}">
+                <span class="detail-label">Wallet Balance After</span>
+                <span class="detail-value">₹<span th:text="${balanceAfter}">400</span></span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Payment Method</span>
+                <span class="detail-value">Park &amp; Ride Wallet</span>
+            </div>
+        </div>
+    </div>
+    <div class="footer">
+        <p>Park &amp; Ride Platform · Smart Parking &amp; Last-Mile Connectivity</p>
+        <p style="margin-top:6px;">Questions? <a href="mailto:support@parkride.com">support@parkride.com</a></p>
+    </div>
+</div>
+</body>
+</html>

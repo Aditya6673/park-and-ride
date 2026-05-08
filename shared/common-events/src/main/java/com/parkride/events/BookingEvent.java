@@ -114,6 +114,28 @@ public class BookingEvent {
     @JsonProperty("qrCodeToken")
     private String qrCodeToken;
 
+    /**
+     * The user's email address — populated by the Parking Service from the JWT claim.
+     * The Notification Service uses this to address outbound emails.
+     * Null-safe: if absent, the Notification Service logs a warning and skips email delivery.
+     */
+    @JsonProperty("userEmail")
+    private String userEmail;
+
+    /**
+     * The user's display name — shown in email salutation.
+     * Optional; falls back to "Valued Customer" when null.
+     */
+    @JsonProperty("userName")
+    private String userName;
+
+    /**
+     * Human-readable parking slot label (e.g. "B-12 / Ground Floor").
+     * Pre-formatted by the Parking Service for use directly in notification templates.
+     */
+    @JsonProperty("slotLabel")
+    private String slotLabel;
+
     // ── Event type discriminator ──────────────────────────────────────────────
 
     /**

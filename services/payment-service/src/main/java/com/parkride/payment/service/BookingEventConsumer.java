@@ -123,6 +123,8 @@ public class BookingEventConsumer {
                 .referenceType("BOOKING")
                 .status(tx.getStatus().name())
                 .failureReason(failureReason)
+                .userEmail(booking.getUserEmail())   // forward from booking event
+                .userName(booking.getUserName())
                 .build();
 
         eventPublisher.publish(paymentEvent);
