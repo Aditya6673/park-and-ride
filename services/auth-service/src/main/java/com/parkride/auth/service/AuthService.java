@@ -1,5 +1,6 @@
 package com.parkride.auth.service;
 
+import com.parkride.events.UserEvent;
 import com.parkride.auth.domain.Role;
 import com.parkride.auth.domain.User;
 import com.parkride.auth.dto.*;
@@ -47,6 +48,7 @@ public class AuthService {
     private final TokenService tokenService;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
+    private final UserEventPublisher userEventPublisher;
 
     // ── Registration ──────────────────────────────────────────────────────
 
@@ -80,8 +82,17 @@ public class AuthService {
         userRepository.save(user);
         log.info("Registered new user: {}", user.getEmail());
 
-        // TODO: publish UserRegisteredEvent to Kafka (Phase 1 Week 5 — Notification Service)
-        // TODO: send verification email via Notification Service
+        // Publish UserRegisteredEvent — Notification Service sends welcome + verification email
+        userEventPublisher.publish(UserEvent.builder()
+                .eventId(UUID.randomUUID())
+                .userId(user.getId())
+                .eventType(UserEvent.EventType.USER_REGISTERED)
+                .occurredAt(Instant.now())
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .phone(user.getPhone())
+                .verificationToken(verificationToken) // raw token; consumer embeds it in URL
+                .build());
 
         String accessToken  = tokenService.generateAccessToken(user);
         String refreshToken = tokenService.generateAndPersistRefreshToken(user, deviceInfo);
@@ -185,7 +196,17 @@ public class AuthService {
             user.setPasswordResetTokenHash(sha256(token));
             user.setPasswordResetTokenExpiresAt(Instant.now().plusSeconds(60 * 60)); // 1h
             userRepository.save(user);
-            // TODO: publish password reset event to Kafka → Notification Service sends email
+            // Publish PasswordResetRequestedEvent — Notification Service sends reset-link email
+            userEventPublisher.publish(UserEvent.builder()
+                    .eventId(UUID.randomUUID())
+                    .userId(user.getId())
+                    .eventType(UserEvent.EventType.PASSWORD_RESET_REQUESTED)
+                    .occurredAt(Instant.now())
+                    .email(user.getEmail())
+                    .firstName(user.getFirstName())
+                    .phone(user.getPhone())
+                    .resetToken(token) // raw token; consumer embeds it in URL
+                    .build());
             log.info("Password reset requested for: {}", email);
         });
         // Always return success to prevent email enumeration

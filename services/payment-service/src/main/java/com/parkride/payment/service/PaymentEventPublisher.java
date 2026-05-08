@@ -27,6 +27,7 @@ public class PaymentEventPublisher {
 
     private final KafkaTemplate<String, PaymentEvent> kafkaTemplate;
 
+    @SuppressWarnings("null") // @Value-injected topic is non-null at runtime
     public void publish(PaymentEvent event) {
         String key = event.getReferenceId() != null
                 ? event.getReferenceId().toString()

@@ -47,6 +47,7 @@ public class EmailService {
      * @param templateName template file name without extension (e.g. {@code "booking-confirmed"})
      * @param variables    model variables injected into the template
      */
+    @SuppressWarnings("null") // MimeMessageHelper setters are @NonNull; fromAddress/@Value is always set
     public void sendHtml(String to, String subject, String templateName,
                          Map<String, Object> variables) {
         if (!emailEnabled) {

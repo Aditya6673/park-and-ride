@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Welcome to Park &amp; Ride</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f9; color: #333; }
+        .wrapper { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 12px;
+                   overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #0F4C6B 0%, #1a7a9c 100%);
+                  padding: 36px 40px; text-align: center; }
+        .header h1 { color: #fff; font-size: 24px; font-weight: 700; }
+        .header p  { color: rgba(255,255,255,0.8); font-size: 14px; margin-top: 6px; }
+        .badge { display: inline-block; background: #27ae60; color: #fff; font-size: 13px;
+                 font-weight: 700; padding: 4px 14px; border-radius: 20px; margin-top: 12px; }
+        .body { padding: 36px 40px; }
+        .greeting { font-size: 18px; font-weight: 600; color: #0F4C6B; margin-bottom: 16px; }
+        .body p { font-size: 15px; color: #4a5568; line-height: 1.6; margin-bottom: 16px; }
+        .cta-container { text-align: center; margin: 28px 0; }
+        .cta-btn { display: inline-block;
+                   background: linear-gradient(135deg, #0F4C6B 0%, #1a7a9c 100%);
+                   color: #fff; text-decoration: none; font-size: 15px; font-weight: 700;
+                   padding: 14px 36px; border-radius: 8px; }
+        .token-box { background: #f8fafc; border: 1px dashed #cbd5e0; border-radius: 8px;
+                     padding: 14px 18px; margin: 8px 0 20px; font-family: monospace;
+                     font-size: 12px; color: #718096; word-break: break-all; text-align: center; }
+        .info { background: #e8f4fd; border-left: 4px solid #1a7a9c; border-radius: 6px;
+                padding: 14px 18px; margin: 16px 0; font-size: 13px; color: #2c5f7a; }
+        .footer { background: #f4f6f9; padding: 24px 40px; text-align: center;
+                  font-size: 12px; color: #a0aec0; border-top: 1px solid #e2e8f0; }
+        .footer a { color: #0F4C6B; text-decoration: none; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="header">
+        <h1>🚗 Park &amp; Ride</h1>
+        <p>Smart Parking &amp; Last-Mile Connectivity</p>
+        <span class="badge">🎉 Welcome Aboard!</span>
+    </div>
+    <div class="body">
+        <p class="greeting">Hi <span th:text="${firstName}">there</span>,</p>
+        <p>
+            Welcome to <strong>Park &amp; Ride</strong>! Your account has been created.
+            Please verify your email address to activate it.
+        </p>
+        <div class="cta-container">
+            <a th:href="${verificationUrl}" href="#" class="cta-btn">✉️ Verify My Email</a>
+        </div>
+        <p style="text-align:center;font-size:13px;color:#718096;margin-top:-8px;">
+            Or paste this link in your browser:
+        </p>
+        <div class="token-box" th:text="${verificationUrl}">[verification URL]</div>
+        <div class="info">
+            ⏰ <strong>This link expires in 24 hours.</strong>
+            After that, request a new one from the login screen.
+        </div>
+        <p>Once verified, you can top up your wallet, browse lots, and reserve slots instantly.</p>
+    </div>
+    <div class="footer">
+        <p>Park &amp; Ride Platform · Smart Parking &amp; Last-Mile Connectivity</p>
+        <p style="margin-top:6px;">Questions? <a href="mailto:support@parkride.com">support@parkride.com</a></p>
+        <p style="margin-top:8px;color:#cbd5e0;">
+            If this wasn't you, you can safely ignore this email.
+        </p>
+    </div>
+</div>
+</body>
+</html>

@@ -108,6 +108,16 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <!--
+                Failsafe — runs *IT.java integration tests during `mvn verify`.
+                Configuration (integration-test + verify goals) is inherited from
+                root pluginManagement. No external infrastructure needed — these
+                ITs use @EmbeddedKafka and @MockitoBean JavaMailSender.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+            </plugin>
         </plugins>
     </build>
 

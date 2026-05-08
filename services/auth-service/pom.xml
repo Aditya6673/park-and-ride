@@ -48,6 +48,12 @@
             <artifactId>common-security</artifactId>
         </dependency>
 
+        <!-- BookingEvent, PaymentEvent, UserEvent — Kafka event schemas -->
+        <dependency>
+            <groupId>com.parkride</groupId>
+            <artifactId>common-events</artifactId>
+        </dependency>
+
         <!-- ══════════════════════════════════════════════════════════════
              2. CORE WEB & VALIDATION
         ══════════════════════════════════════════════════════════════════ -->

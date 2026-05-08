@@ -6,7 +6,6 @@ import com.parkride.payment.domain.TransactionType;
 import com.parkride.payment.domain.Wallet;
 import com.parkride.payment.dto.WalletResponse;
 import com.parkride.payment.dto.TransactionResponse;
-import com.parkride.payment.exception.InsufficientBalanceException;
 import com.parkride.payment.exception.WalletNotFoundException;
 import com.parkride.payment.repository.TransactionRepository;
 import com.parkride.payment.repository.WalletRepository;
@@ -31,6 +30,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null") // Spring Data save() and JPA return types are @NonNull at runtime
 public class WalletService {
 
     private final WalletRepository walletRepository;

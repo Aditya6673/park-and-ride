@@ -2,8 +2,10 @@ package com.parkride.notification.service;
 
 import com.parkride.events.BookingEvent;
 import com.parkride.events.PaymentEvent;
+import com.parkride.events.UserEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.ZoneId;
@@ -22,8 +24,7 @@ import java.util.Map;
  * </ul>
  *
  * <p>Delivery is delegated to {@link EmailService} and {@link SmsService}.
- * Both are best-effort — failures are caught and logged internally,
- * so this method never throws.
+ * Both are best-effort — failures are caught and logged internally.
  */
 @Slf4j
 @Service
@@ -36,6 +37,14 @@ public class NotificationDispatchService {
 
     private final EmailService emailService;
     private final SmsService   smsService;
+
+    /** Base URL for the email-verification endpoint (configurable per environment). */
+    @Value("${notification.auth.verification-base-url:http://localhost:8081/api/auth/verify-email}")
+    private String verificationBaseUrl;
+
+    /** Base URL for the password-reset page on the frontend (configurable per environment). */
+    @Value("${notification.auth.password-reset-base-url:http://localhost:3000/reset-password}")
+    private String passwordResetBaseUrl;
 
     // ── BookingEvent dispatching ───────────────────────────────────────────────
 
@@ -151,6 +160,42 @@ public class NotificationDispatchService {
             default ->
                 log.debug("No notification handler for PaymentEvent type: {}",
                         event.getEventType());
+        }
+    }
+
+    // ── UserEvent dispatching ──────────────────────────────────────────────────
+
+    public void dispatch(UserEvent event) {
+        String email     = event.getEmail();
+        String firstName = event.getFirstName() != null ? event.getFirstName() : "there";
+
+        switch (event.getEventType()) {
+            case USER_REGISTERED -> {
+                String verifyUrl = verificationBaseUrl + "?token=" + event.getVerificationToken();
+                Map<String, Object> vars = new HashMap<>();
+                vars.put("firstName",       firstName);
+                vars.put("verificationUrl", verifyUrl);
+
+                emailService.sendHtml(email,
+                        "🎉 Welcome to Park & Ride — Verify Your Email",
+                        "user-registered", vars);
+
+                log.info("Sent welcome+verification email to {}", email);
+            }
+            case PASSWORD_RESET_REQUESTED -> {
+                String resetUrl = passwordResetBaseUrl + "?token=" + event.getResetToken();
+                Map<String, Object> vars = new HashMap<>();
+                vars.put("firstName", firstName);
+                vars.put("resetUrl",  resetUrl);
+
+                emailService.sendHtml(email,
+                        "🔑 Park & Ride — Password Reset Request",
+                        "password-reset", vars);
+
+                log.info("Sent password-reset email to {}", email);
+            }
+            default ->
+                log.debug("No notification handler for UserEvent type: {}", event.getEventType());
         }
     }
 }

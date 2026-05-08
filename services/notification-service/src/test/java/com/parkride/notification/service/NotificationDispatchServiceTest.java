@@ -73,7 +73,7 @@ class NotificationDispatchServiceTest {
 
         dispatchService.dispatch(event);
 
-        verify(smsService).send(isNull(), anyString());
+        verify(smsService).sendBookingConfirmation(isNull(), anyString());
     }
 
     @Test
@@ -90,7 +90,7 @@ class NotificationDispatchServiceTest {
                 eq("booking-cancelled"),
                 any()
         );
-        verifyNoMoreInteractions(smsService);
+        verify(smsService).sendBookingCancellation(isNull(), anyString());
     }
 
     @Test

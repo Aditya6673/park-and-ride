@@ -22,6 +22,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("EmailService — unit tests (no SMTP)")
+@SuppressWarnings("null") // ReflectionTestUtils and mock() return types aren't @NonNull-annotated
 class EmailServiceTest {
 
     @Mock JavaMailSender mailSender;

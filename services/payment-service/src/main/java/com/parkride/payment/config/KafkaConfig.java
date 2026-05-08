@@ -56,6 +56,7 @@ public class KafkaConfig {
     }
 
     @Bean
+    @SuppressWarnings("null") // ConsumerFactory<String,T> → @NonNull ConsumerFactory<? super String,? super T> is safe
     public ConcurrentKafkaListenerContainerFactory<String, BookingEvent> kafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, BookingEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
@@ -81,6 +82,7 @@ public class KafkaConfig {
     }
 
     @Bean
+    @SuppressWarnings("null") // ProducerFactory<String,T> → @NonNull ProducerFactory<String,T> is safe
     public KafkaTemplate<String, PaymentEvent> kafkaTemplate() {
         return new KafkaTemplate<>(paymentEventProducerFactory());
     }
