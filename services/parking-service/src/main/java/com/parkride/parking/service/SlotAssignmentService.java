@@ -173,7 +173,8 @@ public class SlotAssignmentService {
         try {
             // Extract user email from SecurityContext (stored by JwtAuthFilter).
             // Falls back to null for scheduled jobs (no HTTP context).
-            String userEmail = extractEmailFromSecurityContext();
+            String userEmail = extractFromSecurityContext("email");
+            String userPhone = extractFromSecurityContext("phone");
             String slotLabel = booking.getSlot().getSlotNumber()
                     + " / " + booking.getSlot().getFloor() + " Floor";
 
@@ -191,6 +192,7 @@ public class SlotAssignmentService {
                     .endTime(booking.getEndTime())
                     .qrCodeToken(booking.getQrToken())
                     .userEmail(userEmail)
+                    .userPhone(userPhone)
                     .slotLabel(slotLabel)
                     .build();
 
@@ -202,13 +204,13 @@ public class SlotAssignmentService {
         }
     }
 
-    private String extractEmailFromSecurityContext() {
+    private String extractFromSecurityContext(String key) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || auth.getDetails() == null) return null;
         if (auth.getDetails() instanceof java.util.Map<?, ?> detailsMap) {
-            Object email = detailsMap.get("email");
-            String emailStr = email instanceof String s ? s : null;
-            return (emailStr != null && !emailStr.isBlank()) ? emailStr : null;
+            Object value = detailsMap.get(key);
+            String str = value instanceof String s ? s : null;
+            return (str != null && !str.isBlank()) ? str : null;
         }
         return null;
     }

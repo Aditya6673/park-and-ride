@@ -136,6 +136,15 @@ public class BookingEvent {
     @JsonProperty("slotLabel")
     private String slotLabel;
 
+    /**
+     * User's phone number in E.164 format (e.g. {@code +919876543210}).
+     * Extracted from the JWT {@code phone} claim — populated only when the
+     * user has a phone number on their account. Notification Service uses
+     * this for Twilio SMS delivery alongside email.
+     */
+    @JsonProperty("userPhone")
+    private String userPhone;
+
     // ── Event type discriminator ──────────────────────────────────────────────
 
     /**

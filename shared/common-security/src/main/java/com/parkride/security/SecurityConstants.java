@@ -90,6 +90,13 @@ public final class SecurityConstants {
     public static final String CLAIM_ROLES = "roles";
 
     /**
+     * JWT claim key for the user's phone number in E.164 format.
+     * Only present when the user has a verified phone number on their account.
+     * Used by the Notification Service for SMS delivery without an auth-service lookup.
+     */
+    public static final String CLAIM_PHONE = "phone";
+
+    /**
      * JWT claim key for the token type — distinguishes access tokens
      * from refresh tokens at the validation layer. A refresh token must
      * never be accepted on an access-token-protected endpoint.

@@ -99,8 +99,8 @@ public final class JwtUtil {
      * @param roles  list of Spring Security role names
      * @return signed JWT string
      */
-    public String generateAccessToken(UUID userId, String email, List<String> roles) {
-        return buildToken(userId, email, roles, SecurityConstants.TOKEN_TYPE_ACCESS,
+    public String generateAccessToken(UUID userId, String email, String phone, List<String> roles) {
+        return buildToken(userId, email, phone, roles, SecurityConstants.TOKEN_TYPE_ACCESS,
                 SecurityConstants.ACCESS_TOKEN_EXPIRY_MS);
     }
 
@@ -116,7 +116,7 @@ public final class JwtUtil {
      * @return signed refresh JWT string
      */
     public String generateRefreshToken(UUID userId) {
-        return buildToken(userId, null, Collections.emptyList(),
+        return buildToken(userId, null, null, Collections.emptyList(),
                 SecurityConstants.TOKEN_TYPE_REFRESH,
                 SecurityConstants.REFRESH_TOKEN_EXPIRY_MS);
     }
@@ -200,6 +200,14 @@ public final class JwtUtil {
     }
 
     /**
+     * Extracts the phone number from the {@code phone} claim.
+     * Returns {@code null} when the user has no phone number on their account.
+     */
+    public String extractPhone(Claims claims) {
+        return claims.get(SecurityConstants.CLAIM_PHONE, String.class);
+    }
+
+    /**
      * Extracts the roles list from the {@code roles} claim.
      * Returns an empty list for refresh tokens.
      *
@@ -256,6 +264,7 @@ public final class JwtUtil {
 
     private String buildToken(UUID userId,
                               String email,
+                              String phone,
                               List<String> roles,
                               String tokenType,
                               long expiryMs) {
@@ -272,9 +281,12 @@ public final class JwtUtil {
                 .claim(SecurityConstants.CLAIM_TOKEN_TYPE, tokenType)
                 .signWith(signingKey);
 
-        // Only embed email and roles in access tokens
+        // Only embed email, phone and roles in access tokens
         if (email != null) {
             builder.claim(SecurityConstants.CLAIM_EMAIL, email);
+        }
+        if (phone != null && !phone.isBlank()) {
+            builder.claim(SecurityConstants.CLAIM_PHONE, phone);
         }
         if (!roles.isEmpty()) {
             builder.claim(SecurityConstants.CLAIM_ROLES, String.join(",", roles));

@@ -4,7 +4,10 @@ pom.xml.tag
 pom.xml.releaseBackup
 pom.xml.versionsBackup
 pom.xml.next
-application.properties
+application-local.properties
+application-secrets.properties
+.env.local
+.env
 release.properties
 dependency-reduced-pom.xml
 buildNumber.properties
@@ -24,6 +27,7 @@ hs_err_pid*
 replay_pid*
 
 # IDE - IntelliJ IDEA
+.vscode/
 .idea/
 *.iws
 *.iml

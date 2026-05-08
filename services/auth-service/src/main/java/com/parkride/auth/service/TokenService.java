@@ -46,6 +46,7 @@ public class TokenService {
         return jwtUtil.generateAccessToken(
                 user.getId(),
                 user.getEmail(),
+                user.getPhone(),   // embedded as JWT claim for notification-service
                 user.getRoles().stream()
                         .map(r -> r.getName().name())
                         .toList()

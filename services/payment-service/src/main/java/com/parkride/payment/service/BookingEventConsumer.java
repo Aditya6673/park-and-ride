@@ -125,6 +125,7 @@ public class BookingEventConsumer {
                 .failureReason(failureReason)
                 .userEmail(booking.getUserEmail())   // forward from booking event
                 .userName(booking.getUserName())
+                .userPhone(booking.getUserPhone())
                 .build();
 
         eventPublisher.publish(paymentEvent);

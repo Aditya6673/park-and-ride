@@ -21,8 +21,9 @@ import java.util.Map;
  *   <li>Whether to send email, SMS, or both</li>
  * </ul>
  *
- * <p>The actual delivery is delegated to {@link EmailService} and {@link SmsService},
- * keeping this class focused on routing logic only.
+ * <p>Delivery is delegated to {@link EmailService} and {@link SmsService}.
+ * Both are best-effort — failures are caught and logged internally,
+ * so this method never throws.
  */
 @Slf4j
 @Service
@@ -39,8 +40,9 @@ public class NotificationDispatchService {
     // ── BookingEvent dispatching ───────────────────────────────────────────────
 
     public void dispatch(BookingEvent event) {
-        String email    = event.getUserEmail();
-        String userName = event.getUserName() != null ? event.getUserName() : "Valued Customer";
+        String email     = event.getUserEmail();
+        String phone     = event.getUserPhone();
+        String userName  = event.getUserName() != null ? event.getUserName() : "Valued Customer";
         String slotLabel = event.getSlotLabel() != null ? event.getSlotLabel() : "your slot";
 
         switch (event.getEventType()) {
@@ -57,7 +59,8 @@ public class NotificationDispatchService {
                 emailService.sendHtml(email,
                         "✅ Parking Confirmed — " + slotLabel,
                         "booking-confirmed", vars);
-                smsService.send(null, "Your slot " + slotLabel + " is confirmed! Check email for QR code.");
+
+                smsService.sendBookingConfirmation(phone, slotLabel);
             }
             case BOOKING_CANCELLED -> {
                 Map<String, Object> vars = new HashMap<>();
@@ -69,6 +72,8 @@ public class NotificationDispatchService {
                 emailService.sendHtml(email,
                         "❌ Booking Cancelled — Refund Initiated",
                         "booking-cancelled", vars);
+
+                smsService.sendBookingCancellation(phone, slotLabel);
             }
             case BOOKING_NO_SHOW -> {
                 Map<String, Object> vars = new HashMap<>();
@@ -79,11 +84,17 @@ public class NotificationDispatchService {
                 emailService.sendHtml(email,
                         "⚠️ Booking Marked as No-Show",
                         "booking-cancelled", vars);  // reuse cancelled template
+
+                smsService.send(phone,
+                        "⚠️ Park & Ride: Your booking for slot " + slotLabel +
+                        " was marked no-show. Contact support if this is an error.");
             }
-            case SLOT_CHECKED_IN -> log.debug(
-                    "SLOT_CHECKED_IN for booking {} — no notification configured", event.getBookingId());
-            default -> log.debug(
-                    "No notification handler for BookingEvent type: {}", event.getEventType());
+            case SLOT_CHECKED_IN ->
+                log.debug("SLOT_CHECKED_IN for booking {} — no notification configured",
+                        event.getBookingId());
+            default ->
+                log.debug("No notification handler for BookingEvent type: {}",
+                        event.getEventType());
         }
     }
 
@@ -91,6 +102,7 @@ public class NotificationDispatchService {
 
     public void dispatch(PaymentEvent event) {
         String email    = event.getUserEmail();
+        String phone    = event.getUserPhone();
         String userName = event.getUserName() != null ? event.getUserName() : "Valued Customer";
 
         switch (event.getEventType()) {
@@ -104,6 +116,8 @@ public class NotificationDispatchService {
                 emailService.sendHtml(email,
                         "💳 Payment of ₹" + event.getAmount() + " Received",
                         "payment-charged", vars);
+
+                smsService.sendPaymentConfirmation(phone, event.getAmount());
             }
             case REFUND_PROCESSED -> {
                 Map<String, Object> vars = new HashMap<>();
@@ -115,19 +129,28 @@ public class NotificationDispatchService {
                 emailService.sendHtml(email,
                         "💰 Refund of ₹" + event.getAmount() + " Credited to Wallet",
                         "refund-processed", vars);
+
+                smsService.send(phone,
+                        "💰 Park & Ride: ₹" + event.getAmount() +
+                        " refunded to your wallet. New balance: ₹" + event.getBalanceAfter());
             }
             case PAYMENT_FAILED -> {
                 Map<String, Object> vars = new HashMap<>();
-                vars.put("userName",       userName);
-                vars.put("amount",         event.getAmount());
-                vars.put("failureReason",  event.getFailureReason());
+                vars.put("userName",      userName);
+                vars.put("amount",        event.getAmount());
+                vars.put("failureReason", event.getFailureReason());
 
                 emailService.sendHtml(email,
                         "⚠️ Payment Failed — Action Required",
-                        "payment-charged", vars);  // reuse template with failure flag
+                        "payment-charged", vars);
+
+                smsService.send(phone,
+                        "⚠️ Park & Ride: Payment of ₹" + event.getAmount() +
+                        " failed. Please top up your wallet and try again.");
             }
-            default -> log.debug(
-                    "No notification handler for PaymentEvent type: {}", event.getEventType());
+            default ->
+                log.debug("No notification handler for PaymentEvent type: {}",
+                        event.getEventType());
         }
     }
 }

@@ -71,6 +71,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             // without making a synchronous call to auth-service.
             authentication.setDetails(Map.of(
                     "email", jwtUtil.extractEmail(claims) != null ? jwtUtil.extractEmail(claims) : "",
+                    "phone", jwtUtil.extractPhone(claims) != null ? jwtUtil.extractPhone(claims) : "",
                     "remoteAddr", request.getRemoteAddr()
             ));
             SecurityContextHolder.getContext().setAuthentication(authentication);

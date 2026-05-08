@@ -138,6 +138,14 @@ public class PaymentEvent {
     @JsonProperty("userName")
     private String userName;
 
+    /**
+     * User's phone number in E.164 format (e.g. {@code +919876543210}).
+     * Forwarded from the originating BookingEvent. Notification Service uses
+     * this for Twilio SMS delivery alongside email.
+     */
+    @JsonProperty("userPhone")
+    private String userPhone;
+
     // ── Event type discriminator ──────────────────────────────────────────────
 
     public enum EventType {
