@@ -14,6 +14,12 @@ buildNumber.properties
 .mvn/timing.properties
 .mvn/wrapper/maven-wrapper.jar
 
+# RSA private keys — NEVER commit production private keys
+# Dev keys (private.pem) are gitignored; public.pem is safe to commit
+**/keys/private.pem
+GenerateKeys.java
+GenerateKeys.class
+
 # Java
 *.class
 *.log

@@ -6,6 +6,7 @@ import com.parkride.auth.domain.User;
 import com.parkride.auth.exception.InvalidTokenException;
 import com.parkride.auth.repository.RefreshTokenRepository;
 import com.parkride.security.JwtUtil;
+import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 
+import java.security.KeyPair;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,7 +33,11 @@ import static org.mockito.BDDMockito.*;
 @SuppressWarnings("null")
 class TokenServiceTest {
 
-    private static final String TEST_SECRET = "test-secret-for-unit-tests-only-32ch!!";
+    /**
+     * One RSA key pair per test class — generated once by JJWT, no file I/O.
+     * The private key signs tokens; the public key verifies them.
+     */
+    private static final KeyPair TEST_KEY_PAIR = Jwts.SIG.RS256.keyPair().build();
 
     @Mock private RefreshTokenRepository          refreshTokenRepository;
     @Mock private RedisTemplate<String, String>   redisTemplate;
@@ -38,7 +46,9 @@ class TokenServiceTest {
     @InjectMocks
     private TokenService tokenService;
 
-    private final JwtUtil jwtUtil = new JwtUtil(TEST_SECRET);
+    private final JwtUtil jwtUtil = new JwtUtil(
+            (RSAPrivateKey) TEST_KEY_PAIR.getPrivate(),
+            (RSAPublicKey)  TEST_KEY_PAIR.getPublic());
 
     @BeforeEach
     void injectJwtUtil() throws Exception {

@@ -3,17 +3,19 @@ package com.parkride.pricing.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.parkride.pricing.dto.PricingRuleRequest;
 import com.parkride.pricing.repository.PricingRuleRepository;
+import com.parkride.security.RsaKeyUtil;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.security.interfaces.RSAPrivateKey;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
@@ -50,7 +52,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SuppressWarnings("null")
 class PricingControllerIT {
 
-    private static final String JWT_SECRET = "test-secret-minimum-32-characters-long";
+    /** RSA private key loaded once — used to sign test tokens matching the service's public key. */
+    private static RSAPrivateKey TEST_PRIVATE_KEY;
+
+    @BeforeAll
+    static void loadTestKeys() throws java.io.IOException {
+        TEST_PRIVATE_KEY = RsaKeyUtil.loadPrivateKey(new ClassPathResource("keys/private.pem").getInputStream());
+    }
 
     @Autowired MockMvc          mockMvc;
     @Autowired ObjectMapper     objectMapper;
@@ -273,7 +281,7 @@ class PricingControllerIT {
                 .claim("tokenType", "ACCESS")
                 .issuedAt(Date.from(Instant.now()))
                 .expiration(Date.from(Instant.now().plus(15, ChronoUnit.MINUTES)))
-                .signWith(Keys.hmacShaKeyFor(JWT_SECRET.getBytes()))
+                .signWith(TEST_PRIVATE_KEY)  // RS256 — matches the service's public key
                 .compact();
     }
 }

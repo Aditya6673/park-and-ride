@@ -36,6 +36,7 @@ class AuthServiceTest {
     @Mock private RoleRepository        roleRepository;
     @Mock private TokenService          tokenService;
     @Mock private AuthenticationManager authenticationManager;
+    @Mock private UserEventPublisher    userEventPublisher; // prevents NPE when register/login publishes events
 
     // Use real BCrypt so we test actual password encoding behaviour
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);

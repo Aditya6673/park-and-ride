@@ -2,11 +2,13 @@ package com.parkride.payment.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.parkride.payment.dto.TopUpRequest;
-import com.parkride.security.JwtUtil;
+import com.parkride.security.RsaKeyUtil;
+import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -14,6 +16,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.security.interfaces.RSAPrivateKey;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -45,17 +48,19 @@ class WalletControllerIT {
 
     @Autowired MockMvc      mockMvc;
     @Autowired ObjectMapper objectMapper;
-    @Autowired JwtUtil      jwtUtil;
 
     // Kafka is auto-excluded by test profile, but mock required for context boot
     @MockitoBean KafkaTemplate<String, Object> kafkaTemplate;
 
-    private static UUID   TEST_USER_ID;
-    private static String ACCESS_TOKEN;
+    private static UUID          TEST_USER_ID;
+    private static String        ACCESS_TOKEN;
+    /** RS256 private key — signs test tokens that the payment-service verifies with its public key. */
+    private static RSAPrivateKey TEST_PRIVATE_KEY;
 
     @BeforeAll
-    static void initIds() {
-        TEST_USER_ID = UUID.randomUUID();
+    static void initIds() throws java.io.IOException {
+        TEST_USER_ID     = UUID.randomUUID();
+        TEST_PRIVATE_KEY = RsaKeyUtil.loadPrivateKey(new ClassPathResource("keys/private.pem").getInputStream());
     }
 
     @BeforeEach
@@ -174,7 +179,7 @@ class WalletControllerIT {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private String generateTestToken(UUID userId) {
-        return io.jsonwebtoken.Jwts.builder()
+        return Jwts.builder()
                 .subject(userId.toString())
                 .claim("userId",    userId.toString())
                 .claim("email",     "test@parkride.com")
@@ -182,8 +187,7 @@ class WalletControllerIT {
                 .claim("tokenType", "ACCESS")
                 .issuedAt(java.util.Date.from(Instant.now()))
                 .expiration(java.util.Date.from(Instant.now().plus(15, ChronoUnit.MINUTES)))
-                .signWith(io.jsonwebtoken.security.Keys.hmacShaKeyFor(
-                        "test-secret-minimum-32-characters-long".getBytes()))
+                .signWith(TEST_PRIVATE_KEY)  // RS256 — matches the service's public key
                 .compact();
     }
 

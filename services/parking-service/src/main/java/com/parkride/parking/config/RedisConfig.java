@@ -1,9 +1,11 @@
 package com.parkride.parking.config;
 
 import com.parkride.security.JwtUtil;
+import com.parkride.security.RsaKeyUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.Resource;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
@@ -30,13 +32,10 @@ public class RedisConfig {
         return template;
     }
 
-    /**
-     * JwtUtil must be declared as a {@code @Bean} — it has no {@code @Component}
-     * annotation because {@code common-security} is a plain library with no
-     * Spring dependency. Each service that uses it declares it here.
-     */
+    /** Verify-only — parking-service never mints tokens, only validates them. */
     @Bean
-    public JwtUtil jwtUtil(@Value("${security.jwt.secret}") String secret) {
-        return new JwtUtil(secret);
+    public JwtUtil jwtUtil(@Value("classpath:keys/public.pem") Resource publicKeyRes)
+            throws java.io.IOException {
+        return new JwtUtil(RsaKeyUtil.loadPublicKey(publicKeyRes.getInputStream()));
     }
 }
