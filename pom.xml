@@ -27,13 +27,13 @@
          in the order listed here. Shared libs must come before services.
     ───────────────────────────────────────────────────────────────── -->
     <modules>
-        <!-- Shared libraries (built first — services depend on these) -->
+        <!-- Shared libraries -->
         <module>shared/common-dto</module>
         <module>shared/common-events</module>
         <module>shared/common-security</module>
 
-        <!-- Backend microservices (uncomment as each service is implemented) -->
-<!--        <module>services/api-gateway</module>-->
+        <!-- Backend microservices -->
+        <module>services/api-gateway</module>
         <module>services/auth-service</module>
         <module>services/parking-service</module>
 <!--        <module>services/ride-service</module>-->

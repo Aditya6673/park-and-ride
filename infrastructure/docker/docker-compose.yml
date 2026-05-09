@@ -19,7 +19,12 @@
 #   2181  → zookeeper
 #   15672 → rabbitmq management UI
 #   5672  → rabbitmq AMQP
-#   8080  → pgadmin
+#   8080  → api-gateway        (public edge — all client traffic enters here)
+#   8081  → auth-service       (direct, dev-only)
+#   8082  → parking-service    (direct, dev-only)
+#   8083  → payment-service    (direct, dev-only)
+#   8085  → pricing-service    (direct, dev-only)
+#   8090  → pgadmin            (moved from 8080; profile: tools)
 #   9090  → prometheus
 #   3000  → grafana
 #   5601  → kibana
@@ -307,8 +312,55 @@ services:
       retries: 5
 
   # ---------------------------------------------------------------------------
-  # PGADMIN — browser-based Postgres administration.
+  # API GATEWAY — Edge proxy. All external client traffic enters here.
+  # JWT validation, rate limiting, circuit breaking, correlation ID injection.
+  #
+  # Upstream URIs use Docker service names (inter-container DNS).
+  # The REDIS_PASSWORD must match the redis service's --requirepass value.
+  #
+  # Build:  docker build -f services/api-gateway/Dockerfile -t parkride/api-gateway .
   # Access: http://localhost:8080
+  # ---------------------------------------------------------------------------
+
+  api-gateway:
+    build:
+      context: ../../              # monorepo root (pom.xml lives here)
+      dockerfile: services/api-gateway/Dockerfile
+    image: parkride/api-gateway:latest
+    container_name: api-gateway
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      # Redis (rate limiter)
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      REDIS_PASSWORD: redis_secret
+
+      # Override route URIs to use Docker internal hostnames.
+      # auth-service, parking-service, etc. must also be running in Docker
+      # (or on host.docker.internal if running locally).
+      SPRING_CLOUD_GATEWAY_ROUTES_0__URI: http://auth-service:8081
+      SPRING_CLOUD_GATEWAY_ROUTES_1__URI: http://parking-service:8082
+      SPRING_CLOUD_GATEWAY_ROUTES_2__URI: ws://parking-service:8082
+      SPRING_CLOUD_GATEWAY_ROUTES_3__URI: http://payment-service:8083
+      SPRING_CLOUD_GATEWAY_ROUTES_4__URI: http://pricing-service:8085
+
+    ports:
+      - "8080:8080"
+    networks:
+      - parkride-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # PGADMIN — browser-based Postgres administration.
+  # Access: http://localhost:8090
   # Login: admin@parkride.com / admin
   # ---------------------------------------------------------------------------
 
@@ -325,7 +377,7 @@ services:
       PGADMIN_DEFAULT_PASSWORD: admin
       PGADMIN_CONFIG_SERVER_MODE: "False"   # Single-user desktop mode
     ports:
-      - "8080:80"
+      - "8090:80"
     networks:
       - parkride-net
     profiles:
