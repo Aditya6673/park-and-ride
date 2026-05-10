@@ -36,7 +36,7 @@
         <module>services/api-gateway</module>
         <module>services/auth-service</module>
         <module>services/parking-service</module>
-<!--        <module>services/ride-service</module>-->
+        <module>services/ride-service</module>
         <module>services/notification-service</module>
         <module>services/payment-service</module>
         <module>services/pricing-service</module>

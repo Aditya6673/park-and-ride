@@ -6,7 +6,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.Resource;
+import org.springframework.lang.NonNull;
 import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
@@ -35,7 +37,7 @@ public class RedisConfig {
     /** Reactive Redis template — required by Spring Cloud Gateway rate limiter. */
     @Bean
     public ReactiveRedisTemplate<String, String> reactiveRedisTemplate(
-            ReactiveRedisConnectionFactory factory) {
+            @NonNull ReactiveRedisConnectionFactory factory) {
         return new ReactiveRedisTemplate<>(factory, RedisSerializationContext.string());
     }
 
@@ -57,7 +59,10 @@ public class RedisConfig {
         };
     }
 
-    /** Rate-limit key for unauthenticated routes (auth-route) — keyed by remote IP. */
+    /** Rate-limit key for unauthenticated routes (auth-route) — keyed by remote IP.
+     *  Marked @Primary so Spring has an unambiguous default when two KeyResolver
+     *  beans exist (required by requestRateLimiterGatewayFilterFactory). */
+    @Primary
     @Bean
     public KeyResolver ipKeyResolver() {
         return exchange -> {

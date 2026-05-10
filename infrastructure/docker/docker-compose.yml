@@ -55,6 +55,7 @@ volumes:
   postgres-parking-data:
   postgres-payment-data:
   postgres-pricing-data:
+  postgres-ride-data:
   redis-data:
   kafka-data:
   zookeeper-data:
@@ -160,6 +161,28 @@ services:
       - parkride-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pricing_user -d pricing_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postgres-ride:
+    image: postgres:16-alpine
+    container_name: postgres-ride
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ride_db
+      POSTGRES_USER: ride_user
+      POSTGRES_PASSWORD: ride_secret
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres-ride-data:/var/lib/postgresql/data
+    networks:
+      - parkride-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ride_user -d ride_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -346,6 +369,7 @@ services:
       SPRING_CLOUD_GATEWAY_ROUTES_2__URI: ws://parking-service:8082
       SPRING_CLOUD_GATEWAY_ROUTES_3__URI: http://payment-service:8083
       SPRING_CLOUD_GATEWAY_ROUTES_4__URI: http://pricing-service:8085
+      SPRING_CLOUD_GATEWAY_ROUTES_5__URI: http://ride-service:8086
 
     ports:
       - "8080:8080"
@@ -357,6 +381,45 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # RIDE SERVICE — Last-mile ride management (CAB / SHUTTLE / ERICKSHAW).
+  # Port: 8086
+  # Build:  docker build -f services/ride-service/Dockerfile -t parkride/ride-service .
+  # ---------------------------------------------------------------------------
+
+  ride-service:
+    build:
+      context: ../../
+      dockerfile: services/ride-service/Dockerfile
+    image: parkride/ride-service:latest
+    container_name: ride-service
+    restart: unless-stopped
+    depends_on:
+      postgres-ride:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-ride:5432/ride_db
+      SPRING_DATASOURCE_USERNAME: ride_user
+      DB_RIDE_PASSWORD: ride_secret
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      REDIS_PASSWORD: redis_secret
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    ports:
+      - "8086:8086"
+    networks:
+      - parkride-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   # ---------------------------------------------------------------------------
   # PGADMIN — browser-based Postgres administration.

@@ -6,7 +6,7 @@ import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.test.context.ActiveProfiles;
@@ -30,7 +30,7 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMoc
  *   <li>WireMock runs on a <b>fixed port 18080</b> — matching the route URIs
  *       declared in {@code application-test.properties}, avoiding the
  *       {@code @DynamicPropertySource} list-shadowing problem in Spring Boot.</li>
- *   <li>{@link MockBean} satisfies the {@code ReactiveRedisConnectionFactory}
+ *   <li>{@link MockitoBean} satisfies the {@code ReactiveRedisConnectionFactory}
  *       dependency (no real Redis needed — rate limiting excluded in test profile).</li>
  *   <li>JWT tokens are signed with the RSA private key from the test classpath.</li>
  * </ul>
@@ -78,7 +78,7 @@ class GatewayRoutingIT {
     }
 
     // ── Mock the Redis factory so RedisConfig can create ReactiveRedisTemplate
-    @MockBean
+    @MockitoBean
     ReactiveRedisConnectionFactory reactiveRedisConnectionFactory;
 
     // ── WebTestClient (reactive, port auto-wired by Spring) ──────────────────

@@ -96,6 +96,7 @@ public class AuthenticationFilter
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
+    @SuppressWarnings("null") // Reactor bufferFactory().wrap() / writeWith() lack @NonNull
     private Mono<Void> unauthorized(ServerWebExchange exchange, String detail) {
         ServerHttpResponse response = exchange.getResponse();
         response.setStatusCode(HttpStatus.UNAUTHORIZED);

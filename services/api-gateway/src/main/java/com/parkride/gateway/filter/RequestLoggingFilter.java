@@ -40,9 +40,8 @@ public class RequestLoggingFilter implements GlobalFilter, Ordered {
 
         return chain.filter(exchange).doFinally(signal -> {
             long durationMs = Instant.now().toEpochMilli() - startMs;
-            int  status     = exchange.getResponse().getStatusCode() != null
-                    ? exchange.getResponse().getStatusCode().value()
-                    : 0;
+            var  statusCode = exchange.getResponse().getStatusCode();
+            int  status     = statusCode != null ? statusCode.value() : 0;
             log.info("← {} {} {} traceId={} durationMs={}",
                     status, method, path, traceId, durationMs);
         });

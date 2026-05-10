@@ -36,6 +36,7 @@ import static org.mockito.BDDMockito.given;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT) // chain stub unused in 401-path tests
 @DisplayName("AuthenticationFilter — unit tests")
+@SuppressWarnings("null") // MockServerHttpRequest.get().build() lacks @NonNull in its API
 class AuthenticationFilterTest {
 
     @Mock private JwtUtil       jwtUtil;
